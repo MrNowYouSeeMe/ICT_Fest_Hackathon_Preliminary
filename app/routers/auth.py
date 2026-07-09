@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..auth import (
+    consume_refresh_token,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -29,34 +30,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(org)
 
-    existing = (
-        db.query(User)
-        .filter(User.org_id == org.id, User.username == payload.username)
-        .first()
-    )
+    existing = db.query(User).filter(User.org_id == org.id, User.username == payload.username).first()
     if existing is not None:
-        return {
-            "user_id": existing.id,
-            "org_id": org.id,
-            "username": existing.username,
-            "role": existing.role,
-        }
+        raise AppError(409, "USERNAME_TAKEN", "Username already exists in this organization")
 
-    user = User(
-        org_id=org.id,
-        username=payload.username,
-        hashed_password=hash_password(payload.password),
-        role=role,
-    )
+    user = User(org_id=org.id, username=payload.username, hashed_password=hash_password(payload.password), role=role)
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {
-        "user_id": user.id,
-        "org_id": org.id,
-        "username": user.username,
-        "role": user.role,
-    }
+    return {"user_id": user.id, "org_id": org.id, "username": user.username, "role": user.role}
 
 
 @router.post("/login")
@@ -64,18 +46,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     org = db.query(Organization).filter(Organization.name == payload.org_name).first()
     user = None
     if org is not None:
-        user = (
-            db.query(User)
-            .filter(User.org_id == org.id, User.username == payload.username)
-            .first()
-        )
+        user = db.query(User).filter(User.org_id == org.id, User.username == payload.username).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise AppError(401, "INVALID_CREDENTIALS", "Invalid username or password")
-    return {
-        "access_token": create_access_token(user),
-        "refresh_token": create_refresh_token(user),
-        "token_type": "bearer",
-    }
+    return {"access_token": create_access_token(user), "refresh_token": create_refresh_token(user), "token_type": "bearer"}
 
 
 @router.post("/refresh")
@@ -86,11 +60,10 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == int(data["sub"])).first()
     if user is None:
         raise AppError(401, "UNAUTHORIZED", "Unknown user")
-    return {
-        "access_token": create_access_token(user),
-        "refresh_token": create_refresh_token(user),
-        "token_type": "bearer",
-    }
+    jti = data.get("jti")
+    if not jti or not consume_refresh_token(jti):
+        raise AppError(401, "UNAUTHORIZED", "Refresh token already used")
+    return {"access_token": create_access_token(user), "refresh_token": create_refresh_token(user), "token_type": "bearer"}
 
 
 @router.post("/logout")

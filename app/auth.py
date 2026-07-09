@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import os
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -9,20 +10,14 @@ import jwt
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
-from .config import (
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    JWT_ALGORITHM,
-    JWT_SECRET,
-    REFRESH_TOKEN_EXPIRE_DAYS,
-)
+from .config import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, JWT_SECRET, REFRESH_TOKEN_EXPIRE_DAYS
 from .database import get_db
 from .errors import AppError
 from .models import User
 
-# Access tokens presented to /auth/logout are recorded here so they can no
-# longer be used.
 _revoked_tokens: set[str] = set()
-
+_used_refresh_tokens: set[str] = set()
+_token_lock = threading.Lock()
 _PBKDF2_ROUNDS = 100_000
 
 
@@ -47,8 +42,8 @@ def _now_ts() -> int:
 
 def create_access_token(user: User) -> str:
     iat = _now_ts()
-    lifetime = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-    payload = {
+    lifetime = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode({
         "sub": str(user.id),
         "org": user.org_id,
         "role": user.role,
@@ -56,14 +51,13 @@ def create_access_token(user: User) -> str:
         "iat": iat,
         "exp": iat + int(lifetime.total_seconds()),
         "type": "access",
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    }, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(user: User) -> str:
     iat = _now_ts()
     lifetime = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {
+    return jwt.encode({
         "sub": str(user.id),
         "org": user.org_id,
         "role": user.role,
@@ -71,8 +65,7 @@ def create_refresh_token(user: User) -> str:
         "iat": iat,
         "exp": iat + int(lifetime.total_seconds()),
         "type": "refresh",
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    }, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def decode_token(token: str) -> dict:
@@ -83,7 +76,16 @@ def decode_token(token: str) -> dict:
 
 
 def revoke_access_token(payload: dict) -> None:
-    _revoked_tokens.add(payload["jti"])
+    with _token_lock:
+        _revoked_tokens.add(payload["jti"])
+
+
+def consume_refresh_token(jti: str) -> bool:
+    with _token_lock:
+        if jti in _used_refresh_tokens:
+            return False
+        _used_refresh_tokens.add(jti)
+        return True
 
 
 def get_token_payload(request: Request) -> dict:
@@ -94,18 +96,17 @@ def get_token_payload(request: Request) -> dict:
     payload = decode_token(token)
     if payload.get("type") != "access":
         raise AppError(401, "UNAUTHORIZED", "Wrong token type")
-    if payload.get("sub") in _revoked_tokens:
+    if payload.get("jti") in _revoked_tokens:
         raise AppError(401, "UNAUTHORIZED", "Token has been revoked")
     return payload
 
 
-def get_current_user(
-    payload: dict = Depends(get_token_payload),
-    db: Session = Depends(get_db),
-) -> User:
+def get_current_user(payload: dict = Depends(get_token_payload), db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.id == int(payload["sub"])).first()
     if user is None:
         raise AppError(401, "UNAUTHORIZED", "Unknown user")
+    if user.org_id != payload.get("org") or user.role != payload.get("role"):
+        raise AppError(401, "UNAUTHORIZED", "Token claims do not match user")
     return user
 
 

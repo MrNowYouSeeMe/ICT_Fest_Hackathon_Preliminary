@@ -7,26 +7,7 @@ from sqlalchemy.orm import Session
 from ..models import Booking, Room
 from ..timeutils import iso_utc
 
-EXPORT_HEADER = [
-    "id",
-    "reference_code",
-    "room_id",
-    "user_id",
-    "start_time",
-    "end_time",
-    "status",
-    "price_cents",
-]
-
-
-def fetch_bookings_raw(db: Session, room_id: int) -> list[Booking]:
-    """Load every booking for a single room, ordered by id."""
-    return (
-        db.query(Booking)
-        .filter(Booking.room_id == room_id)
-        .order_by(Booking.id.asc())
-        .all()
-    )
+EXPORT_HEADER = ["id", "reference_code", "room_id", "user_id", "start_time", "end_time", "status", "price_cents"]
 
 
 def _fetch_scoped(db: Session, org_id: int, user_id: int | None, room_id: int | None) -> list[Booking]:
@@ -38,35 +19,13 @@ def _fetch_scoped(db: Session, org_id: int, user_id: int | None, room_id: int | 
     return query.order_by(Booking.id.asc()).all()
 
 
-def generate_export(
-    db: Session,
-    org_id: int,
-    user_id: int,
-    room_id: int | None,
-    include_all: bool,
-) -> str:
-    if include_all:
-        if room_id is not None:
-            rows = fetch_bookings_raw(db, room_id)
-        else:
-            rows = _fetch_scoped(db, org_id, None, None)
-    else:
-        rows = _fetch_scoped(db, org_id, user_id, room_id)
+def generate_export(db: Session, org_id: int, user_id: int, room_id: int | None, include_all: bool) -> str:
+    scoped_user = None if include_all else user_id
+    rows = _fetch_scoped(db, org_id, scoped_user, room_id)
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(EXPORT_HEADER)
     for b in rows:
-        writer.writerow(
-            [
-                b.id,
-                b.reference_code,
-                b.room_id,
-                b.user_id,
-                iso_utc(b.start_time),
-                iso_utc(b.end_time),
-                b.status,
-                b.price_cents,
-            ]
-        )
+        writer.writerow([b.id, b.reference_code, b.room_id, b.user_id, iso_utc(b.start_time), iso_utc(b.end_time), b.status, b.price_cents])
     return buffer.getvalue()
