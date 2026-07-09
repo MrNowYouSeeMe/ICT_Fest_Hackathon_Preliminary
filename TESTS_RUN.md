@@ -13,7 +13,8 @@ Final retest: 64 PASS, 0 FAIL
 Deep corner/concurrency: 90 PASS, 0 FAIL  
 README max audit after patch: 60 PASS, 0 FAIL  
 README full exhaustive audit: 149 PASS, 0 FAIL  
-Total checked: 363 PASS, 0 FAIL
+Official smoke test: 1 PASS, 0 FAIL  
+Total checked: 364 PASS, 0 FAIL
 
 ---
 
@@ -371,10 +372,27 @@ Verified:
 
 ---
 
+## Official Pytest Smoke Test
+
+Result:
+
+`1 PASS, 0 FAIL`
+
+Command used:
+
+`python -m pytest -q`
+
+Verified:
+- repository smoke test passes
+- official test suite currently reports no failures
+
+---
+
 ## Final Conclusion
 
 Final retest: 64 PASS, 0 FAIL  
 Deep corner/concurrency: 90 PASS, 0 FAIL  
 README max audit after patch: 60 PASS, 0 FAIL  
 README full exhaustive audit: 149 PASS, 0 FAIL  
-Total checked: 363 PASS, 0 FAIL
+Official smoke test: 1 PASS, 0 FAIL  
+Total checked: 364 PASS, 0 FAIL
