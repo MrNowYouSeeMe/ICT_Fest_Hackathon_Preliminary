@@ -12,7 +12,8 @@ The tests were black-box style HTTP API checks against the running FastAPI serve
 Final retest: 64 PASS, 0 FAIL  
 Deep corner/concurrency: 90 PASS, 0 FAIL  
 README max audit after patch: 60 PASS, 0 FAIL  
-Total checked: 214 PASS, 0 FAIL
+README full exhaustive audit: 149 PASS, 0 FAIL  
+Total checked: 363 PASS, 0 FAIL
 
 ---
 
@@ -118,6 +119,36 @@ Result:
 - admin export include_all behavior
 - concurrent quota enforcement
 - concurrent rate-limit enforcement
+
+---
+
+## 4. README Full Exhaustive Audit
+
+Result:
+
+`149 PASS, 0 FAIL`
+
+### Covered Areas
+- exact API response schemas and keys
+- JWT access and refresh token claims
+- expired and invalid token behavior
+- duplicate registration behavior
+- admin/member permission boundaries
+- multi-tenant room, stats, availability, booking, and export isolation
+- booking validation edge cases
+- conflict and back-to-back booking edge cases
+- quota behavior across rooms
+- refund and cancellation log correctness
+- usage report freshness and zero-room inclusion
+- availability and stats freshness after cancellation
+- export CSV header and scoping
+- pagination no-skip/no-repeat behavior
+- rate-limit behavior with failed requests
+- same-slot concurrent booking race
+- concurrent quota race
+- concurrent reference-code uniqueness
+- concurrent cancellation race
+- concurrent rate-limit race
 
 ---
 
@@ -345,4 +376,5 @@ Verified:
 Final retest: 64 PASS, 0 FAIL  
 Deep corner/concurrency: 90 PASS, 0 FAIL  
 README max audit after patch: 60 PASS, 0 FAIL  
-Total checked: 214 PASS, 0 FAIL
+README full exhaustive audit: 149 PASS, 0 FAIL  
+Total checked: 363 PASS, 0 FAIL

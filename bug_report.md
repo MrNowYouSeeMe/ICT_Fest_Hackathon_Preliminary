@@ -417,6 +417,7 @@ Cross-org `room_id` now returns:
 Final retest: 64 PASS, 0 FAIL  
 Deep corner/concurrency: 90 PASS, 0 FAIL  
 README max audit after patch: 60 PASS, 0 FAIL  
-Total checked: 214 PASS, 0 FAIL
+README full exhaustive audit: 149 PASS, 0 FAIL  
+Total checked: 363 PASS, 0 FAIL
 
 Detailed testing summary is available in `TESTS_RUN.md`.
